@@ -3,7 +3,7 @@ export type NativeLayer = 'abi' | 'rust' | 'cpp_hal' | 'cpp_gpu' | 'jni_build';
 export interface NativeSourceFile {
   path: string;
   fileName: string;
-  language: 'C' | 'C++20' | 'Rust' | 'CMake' | 'TOML' | 'Bash' | 'PowerShell';
+  language: 'C' | 'C++20' | 'Rust' | 'CMake' | 'TOML' | 'Bash' | 'PowerShell' | 'Batch';
   layer: NativeLayer;
   summary: string;
   content: string;
@@ -91,6 +91,16 @@ const FILE_META: Record<
     layer: 'jni_build',
     summary: 'Script Windows PowerShell que redirige Rustup, Cargo, TEMP, NDK y CMake/Ninja íntegramente al disco D:.',
   },
+  '/native/migrate_rust_cache.bat': {
+    language: 'Batch',
+    layer: 'jni_build',
+    summary: 'Script CMD Windows con set/setx CARGO_HOME y RUSTUP_HOME para mover cachés fuera de C:.',
+  },
+  '/native/migrate_rust_cache.ps1': {
+    language: 'PowerShell',
+    layer: 'jni_build',
+    summary: 'Script PowerShell parametrizado para migrar cachés de Cargo y Rustup hacia D:\\ o unidad externa.',
+  },
 };
 
 export const NATIVE_SOURCE_FILES: NativeSourceFile[] = Object.entries(rawNativeModules)
@@ -141,4 +151,44 @@ export function buildSelfExtractingBundleScript(files: NativeSourceFile[]): stri
   lines.push('chmod +x build_android15.sh');
   lines.push('echo "Archivos extraídos en $(pwd). Ejecuta: ANDROID_NDK_HOME=/ruta/ndk ./build_android15.sh arm64-v8a"');
   return lines.join('\n');
+}
+
+function utf8ToBase64(text: string): string {
+  const bytes = new TextEncoder().encode(text);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+export function buildWindowsPowerShellBundleScript(
+  files: NativeSourceFile[],
+  defaultRoot = 'D:\\AndroCore\\native'
+): string {
+  const lines: string[] = [
+    'param(',
+    `    [string]$TargetDir = "${defaultRoot}"`,
+    ')',
+    '$ErrorActionPreference = "Stop"',
+    'New-Item -ItemType Directory -Force -Path $TargetDir | Out-Null',
+    'Write-Host "Extrayendo codigo nativo AndroCore NDK en $TargetDir..."',
+    '',
+  ];
+
+  for (const file of files) {
+    const relPath = file.path.replace(/^\/native\//, '').replace(/\//g, '\\');
+    const b64 = utf8ToBase64(file.content);
+    lines.push(`$outPath = Join-Path $TargetDir "${relPath}"`);
+    lines.push('$parent = Split-Path -Parent $outPath');
+    lines.push('if (-not (Test-Path $parent)) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }');
+    lines.push(`[System.IO.File]::WriteAllBytes($outPath, [Convert]::FromBase64String("${b64}"))`);
+  }
+
+  lines.push('');
+  lines.push('Write-Host "Listo. Siguientes pasos en PowerShell:"');
+  lines.push('Write-Host "  cd $TargetDir"');
+  lines.push('Write-Host "  .\\migrate_rust_cache.ps1 -TargetBase D:\\RustEnv"');
+  lines.push('Write-Host "  .\\build_android15.ps1 -Abi arm64-v8a -WorkDrive D:\\AndroCore"');
+  return lines.join('\r\n');
 }

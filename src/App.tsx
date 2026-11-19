@@ -4,7 +4,11 @@ import { ArchitecturePillars } from './components/ArchitecturePillars';
 import { NativeCodeExplorer } from './components/NativeCodeExplorer';
 import { PeBinaryInspector } from './components/PeBinaryInspector';
 import { RustCacheMigrationGuide } from './components/RustCacheMigrationGuide';
-import { buildSelfExtractingBundleScript, NATIVE_SOURCE_FILES } from './data/nativeManifest';
+import {
+  buildSelfExtractingBundleScript,
+  buildWindowsPowerShellBundleScript,
+  NATIVE_SOURCE_FILES,
+} from './data/nativeManifest';
 
 export default function App() {
   const [selectedCodePath, setSelectedCodePath] = useState<string>(
@@ -30,15 +34,22 @@ export default function App() {
     }
   };
 
-  const handleDownloadBundle = () => {
-    const script = buildSelfExtractingBundleScript(NATIVE_SOURCE_FILES);
-    const blob = new Blob([script], { type: 'text/x-shellscript;charset=utf-8' });
+  const downloadBundleForPlatform = (platform: 'windows_d' | 'linux') => {
+    const isWin = platform === 'windows_d';
+    const script = isWin
+      ? buildWindowsPowerShellBundleScript(NATIVE_SOURCE_FILES)
+      : buildSelfExtractingBundleScript(NATIVE_SOURCE_FILES);
+    const blob = new Blob([script], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'extract_androcore_native.sh';
+    a.download = isWin ? 'extract_androcore_native.ps1' : 'extract_androcore_native.sh';
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadBundle = () => {
+    downloadBundleForPlatform(buildPlatform);
   };
 
   return (
@@ -212,20 +223,46 @@ export default function App() {
             </div>
 
             {buildPlatform === 'windows_d' ? (
-              <pre className="bg-slate-950 text-slate-100 text-xs font-mono p-4 rounded-lg overflow-x-auto shrink-0">
-{`# En PowerShell sobre D:\\AndroCore\\native
-.\\build_android15.ps1 \`
-  -Abi arm64-v8a \`
-  -WorkDrive "D:\\AndroCore" \`
-  -NdkPath "D:\\AndroCore\\Android\\Sdk\\ndk\\27.2.12479018"`}
-              </pre>
+              <div className="space-y-3 shrink-0">
+                <pre className="bg-slate-950 text-slate-100 text-xs font-mono p-4 rounded-lg overflow-x-auto">
+{`# 1. Extraer codigo nativo en D:\\AndroCore\\native
+.\\extract_androcore_native.ps1 -TargetDir "D:\\AndroCore\\native"
+
+# 2. Migrar cache Cargo/Rustup y compilar en D:\\
+cd D:\\AndroCore\\native
+.\\migrate_rust_cache.ps1 -TargetBase "D:\\RustEnv"
+.\\build_android15.ps1 -Abi arm64-v8a -WorkDrive "D:\\AndroCore" -NdkPath "D:\\AndroCore\\Android\\Sdk\\ndk\\27.2.12479018"`}
+                </pre>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => downloadBundleForPlatform('windows_d')}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                    Descargar extract_androcore_native.ps1
+                  </button>
+                </div>
+              </div>
             ) : (
-              <pre className="bg-slate-950 text-slate-100 text-xs font-mono p-4 rounded-lg overflow-x-auto shrink-0">
+              <div className="space-y-3 shrink-0">
+                <pre className="bg-slate-950 text-slate-100 text-xs font-mono p-4 rounded-lg overflow-x-auto">
 {`chmod +x extract_androcore_native.sh
 ./extract_androcore_native.sh
 cd androcore_native
 ANDROID_NDK_HOME=/opt/android-ndk-r27 ./build_android15.sh arm64-v8a`}
-              </pre>
+                </pre>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => downloadBundleForPlatform('linux')}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                    Descargar extract_androcore_native.sh
+                  </button>
+                </div>
+              </div>
             )}
           </div>
 

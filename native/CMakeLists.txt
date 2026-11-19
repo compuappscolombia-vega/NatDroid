@@ -13,7 +13,12 @@ find_library(LOG_LIB log REQUIRED)
 find_library(VULKAN_LIB vulkan REQUIRED)
 find_library(NATIVEWINDOW_LIB nativewindow REQUIRED)
 
-set(RUST_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/rust_host/target/${ANDROID_ABI}/release/libemu_rust_host.a")
+set(RUST_LIB_OVERRIDE "" CACHE FILEPATH "Optional path to libemu_rust_host.a on an external drive")
+if (RUST_LIB_OVERRIDE)
+    set(RUST_LIB_PATH "${RUST_LIB_OVERRIDE}")
+else()
+    set(RUST_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/rust_host/target/${ANDROID_ABI}/release/libemu_rust_host.a")
+endif()
 
 add_library(emu_android15_core SHARED
     cpp_core/hw_driver_hal.cpp

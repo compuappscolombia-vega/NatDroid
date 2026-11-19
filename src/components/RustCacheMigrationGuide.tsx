@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Check, Copy, HardDrive } from 'lucide-react';
+import { Check, Copy, Download, HardDrive } from 'lucide-react';
 
 type ShellKind = 'cmd' | 'powershell';
 
@@ -107,6 +107,62 @@ export function RustCacheMigrationGuide() {
     }
   };
 
+  const handleDownloadConfiguredScript = () => {
+    const isCmd = shellKind === 'cmd';
+    const content = isCmd
+      ? [
+          '@echo off',
+          'setlocal',
+          `set "TARGET_BASE=${cleanBase}"`,
+          `set "CARGO_HOME=${cargoHome}"`,
+          `set "RUSTUP_HOME=${rustupHome}"`,
+          `set "CARGO_TARGET_DIR=${targetDir}"`,
+          `set "TEMP=${tempDir}"`,
+          `set "TMP=${tempDir}"`,
+          `mkdir "${cargoHome}" "${rustupHome}" "${targetDir}" "${tempDir}" 2>nul`,
+          `if exist "%USERPROFILE%\\.cargo" robocopy "%USERPROFILE%\\.cargo" "${cargoHome}" /E /COPY:DAT /R:2 /W:2 >nul`,
+          `if exist "%USERPROFILE%\\.rustup" robocopy "%USERPROFILE%\\.rustup" "${rustupHome}" /E /COPY:DAT /R:2 /W:2 >nul`,
+          `set "PATH=${cargoHome}\\bin;%PATH%"`,
+          `setx CARGO_HOME "${cargoHome}"`,
+          `setx RUSTUP_HOME "${rustupHome}"`,
+          `setx CARGO_TARGET_DIR "${targetDir}"`,
+          `powershell -NoProfile -Command "$bin='${cargoHome}\\bin'; $p=[Environment]::GetEnvironmentVariable('Path','User'); if(-not $p){$p=''}; if($p -notlike ('*' + $bin + '*')){ [Environment]::SetEnvironmentVariable('Path', ($bin + ';' + $p).TrimEnd(';'), 'User') }"`,
+          'rustup target add aarch64-linux-android x86_64-linux-android',
+          'cargo install cargo-ndk',
+          'echo Migracion completada. Abre una nueva terminal para confirmar %CARGO_HOME% y %RUSTUP_HOME%.',
+          'pause',
+        ].join('\r\n')
+      : [
+          '$ErrorActionPreference = "Stop"',
+          `New-Item -ItemType Directory -Force -Path "${cargoHome}", "${rustupHome}", "${targetDir}", "${tempDir}" | Out-Null`,
+          `if (Test-Path "$env:USERPROFILE\\.cargo")  { robocopy "$env:USERPROFILE\\.cargo"  "${cargoHome}"  /E /COPY:DAT /R:2 /W:2 | Out-Null }`,
+          `if (Test-Path "$env:USERPROFILE\\.rustup") { robocopy "$env:USERPROFILE\\.rustup" "${rustupHome}" /E /COPY:DAT /R:2 /W:2 | Out-Null }`,
+          `$env:CARGO_HOME       = "${cargoHome}"`,
+          `$env:RUSTUP_HOME      = "${rustupHome}"`,
+          `$env:CARGO_TARGET_DIR = "${targetDir}"`,
+          `$env:TEMP             = "${tempDir}"`,
+          `$env:TMP              = "${tempDir}"`,
+          `$env:PATH             = "${cargoHome}\\bin;$env:PATH"`,
+          `[Environment]::SetEnvironmentVariable("CARGO_HOME", "${cargoHome}", "User")`,
+          `[Environment]::SetEnvironmentVariable("RUSTUP_HOME", "${rustupHome}", "User")`,
+          `[Environment]::SetEnvironmentVariable("CARGO_TARGET_DIR", "${targetDir}", "User")`,
+          `$userPath = [Environment]::GetEnvironmentVariable("Path", "User")`,
+          `if (-not $userPath) { $userPath = "" }`,
+          `if ($userPath -notlike "*${cargoHome}\\bin*") { [Environment]::SetEnvironmentVariable("Path", ("${cargoHome}\\bin;$userPath").TrimEnd(';'), "User") }`,
+          'rustup target add aarch64-linux-android x86_64-linux-android',
+          'cargo install cargo-ndk',
+          `Write-Host "Migracion aplicada en ${cleanBase}. Reinicia tu terminal para validar."`,
+        ].join('\r\n');
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = isCmd ? 'migrate_rust_cache.bat' : 'migrate_rust_cache.ps1';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="mt-8 bg-white border border-slate-200 rounded-xl p-6 sm:p-8">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 pb-6 border-b border-slate-200">
@@ -125,7 +181,7 @@ export function RustCacheMigrationGuide() {
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="inline-flex items-center gap-1 p-1 bg-slate-100 rounded-lg self-start">
             <button
               type="button"
@@ -150,6 +206,15 @@ export function RustCacheMigrationGuide() {
               PowerShell
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={handleDownloadConfiguredScript}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" aria-hidden="true" />
+            {shellKind === 'cmd' ? 'Descargar .bat' : 'Descargar .ps1'}
+          </button>
         </div>
       </div>
 
