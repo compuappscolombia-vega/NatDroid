@@ -1,0 +1,6 @@
+{
+  "name": "AndroCore NDK — Arquitectura Nativa Android 15",
+  "description": "Arquitectura modular de plugins en C++20 y Rust, integración con drivers de hardware Android 15, puente Vulkan 1.3 AHardwareBuffer e inspector real de binarios PE32+.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
